@@ -161,6 +161,37 @@
                 margin-left: 70px;
             }
         }
+        .file-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            max-width: 600px;
+            align-items: stretch;
+        }
+
+        input[type="button"].file-main-btn {
+            flex: 1;
+            text-align: left;
+            padding: 15px 16px;
+            box-sizing: border-box;
+        }
+
+        .copy-btn {
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 0 12px;
+            min-width: 64px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.15s ease, transform 0.08s ease;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
@@ -194,6 +225,23 @@
     </div>
 
     <script>
+        // Helper to copy text to clipboard with a fallback
+        function copyToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(text);
+            }
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'absolute';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            return Promise.resolve();
+        }
+
 const files = [
   'cl1',
   'cl1',
@@ -2156,6 +2204,19 @@ const files = [
                 }
             });
 
+            // Helpers used by buttons
+            function normalizeFileName(name) {
+                if (name.includes('.') && name.lastIndexOf('.') > 0) return name;
+                return name + '.html';
+            }
+
+            function buildCdnUrl(name, includeTimestamp = false) {
+                const normalized = normalizeFileName(name);
+                const encoded = encodeURIComponent(normalized);
+                const base = `https://cdn.jsdelivr.net/gh/bubbls/ugs-singlefile/UGS-Files/${encoded}`;
+                return includeTimestamp ? `${base}?t=${Date.now()}` : base;
+            }
+
             const container = document.getElementById('sections-container');
             allChars.forEach(char => {
                 const section = document.createElement('div');
@@ -2172,20 +2233,16 @@ const files = [
 
                 if (filesByChar[char].length > 0) {
                     filesByChar[char].forEach(file => {
+                        const row = document.createElement('div');
+                        row.className = 'file-row';
+
                         const btn = document.createElement('input');
                         btn.type = 'button';
                         btn.value = file;
+                        btn.className = 'file-main-btn';
                         btn.onclick = () => {
-
-                            function normalizeFileName(name) {
-                                if (name.includes('.') && name.lastIndexOf('.') > 0) return name;
-                                return name + '.html';
-                            }
-
-                            const normalized = normalizeFileName(file);
-                            const encoded = encodeURIComponent(normalized);
-
-                            fetch(`https://cdn.jsdelivr.net/gh/bubbls/ugs-singlefile/UGS-Files/${encoded}?t=${Date.now()}`)
+                            const url = buildCdnUrl(file, true);
+                            fetch(url)
                                 .then(response => response.text())
                                 .then(text => {
                                     const newWin = window.open("about:blank", "_blank");
@@ -2196,10 +2253,26 @@ const files = [
                                     }
                                 });
                         };
-                        btn.style.width = '100%';
-                        btn.style.height = '100%';
                         btn.style.fontSize = '100%';
-                        buttonsContainer.appendChild(btn);
+
+                        const copyBtn = document.createElement('button');
+                        copyBtn.className = 'copy-btn';
+                        copyBtn.type = 'button';
+                        copyBtn.title = 'Copy CDN link';
+                        copyBtn.textContent = 'Copy';
+                        copyBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            const url = buildCdnUrl(file, false);
+                            copyToClipboard(url).then(() => {
+                                const prev = copyBtn.textContent;
+                                copyBtn.textContent = 'Copied!';
+                                setTimeout(() => copyBtn.textContent = prev, 1200);
+                            });
+                        };
+
+                        row.appendChild(btn);
+                        row.appendChild(copyBtn);
+                        buttonsContainer.appendChild(row);
                     });
                 } else {
                     section.classList.add('empty');
